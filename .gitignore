@@ -1,0 +1,7 @@
+.venv/
+data/raw/
+*.csv
+dbt/target/
+dbt/logs/
+.env
+*.json
