@@ -6,7 +6,6 @@ Safe to re-run: each table is replaced.
 """
 import csv
 from pathlib import Path
-
 from google.cloud import bigquery
 
 PROJECT = "supply-chain-analytics-510105"
