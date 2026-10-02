@@ -18,3 +18,86 @@ models:
               arguments:
                 values: ['delivered', 'shipped', 'canceled', 'unavailable',
                          'invoiced', 'processing', 'created', 'approved']
+
+  - name: stg_customers
+    description: One row per customer_id. Note that customer_id is unique per order; customer_unique_id identifies the person.
+    columns:
+      - name: customer_id
+        data_tests:
+          - unique
+          - not_null
+      - name: customer_unique_id
+        data_tests:
+          - not_null
+
+  - name: stg_order_items
+    description: One row per item within an order.
+    columns:
+      - name: order_item_key
+        description: Primary key (order_id + order_item_id).
+        data_tests:
+          - unique
+          - not_null
+      - name: order_id
+        data_tests:
+          - not_null
+      
+  - name: stg_order_payments
+    description: One row per item within an order.
+    columns:
+      - name: payment_key
+        description: Primary key (order_id + payment_sequential).
+        data_tests:
+          - unique
+          - not_null
+      - name: order_id
+        data_tests:
+          - not_null
+  
+  - name: stg_order_reviews
+    description: One row per review per order. Not deduplicated; see the intermediate layer.
+    columns:
+      - name: review_key
+        description: Primary key (review_id + order_id).
+        data_tests:
+          - unique
+          - not_null
+      - name: review_score
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: [1, 2, 3, 4, 5]
+                quote: false
+
+  - name: stg_products
+    description: the product_id is the primary key
+    columns:
+      - name: product_id
+        data_tests:
+          - unique
+          - not_null
+
+  - name: stg_sellers
+    description: seller_id unique and not null.
+    columns:
+      - name: seller_id
+        data_tests:
+          - unique
+          - not_null
+
+  - name: stg_geolocation
+    description: Raw zip-prefix coordinates. Many rows per prefix, including exact duplicates; no primary key. Aggregated to one row per prefix in the intermediate layer.
+    columns:
+      - name: zip_code_prefix
+        data_tests:
+          - not_null
+
+  - name: stg_product_category_translation
+    description: The name must be unique and not null
+    columns:
+      - name: product_category_name
+        data_tests:
+          - not_null
+          - unique
+
+      

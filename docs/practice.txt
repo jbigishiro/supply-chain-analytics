@@ -1,0 +1,43 @@
+Level 1: foundations
+
+1. Delivery basics (CTE, date arithmetic, COUNTIF)
+For delivered orders with a delivery date, calculate the average delivery time in days (purchase → delivery) and the on-time rate (delivered on or before the estimated date).
+Hint: DATE_DIFF(DATE(delivered_at), DATE(purchased_at), DAY). Compare dates rather than timestamps for on-time, because the estimate has no time of day.
+
+2. Lateness buckets vs reviews (CASE, JOIN)
+Put each delivered order into a bucket: 7+ days early, 1–6 days early, on the estimated day, 1–3 days late, 4–7 days late, 8+ days late. For each bucket, show the order count and average review score.
+Hint: a few orders have more than one review, so decide how to handle that before joining, or your counts will be inflated.
+
+Level 2: window functions
+
+3. Month-over-month change (LAG)
+Show the on-time rate for each month from Jan 2017 to Aug 2018, plus the change from the previous month in percentage points.
+Hint: DATE_TRUNC(DATE(purchased_at), MONTH), then LAG(on_time_rate) OVER (ORDER BY month).
+
+4. Running total and moving average (window frames)
+Using order_items, calculate monthly revenue (price + freight), a running total since Jan 2017, and a 3-month moving average.
+Hint: AVG(...) OVER (ORDER BY month ROWS BETWEEN 2 PRECEDING AND CURRENT ROW).
+
+5. Top 3 categories per state (ROW_NUMBER, QUALIFY)
+For each customer state, find the 3 product categories with the most revenue, using English category names.
+Hint: this needs 5 tables. Rank with ROW_NUMBER() OVER (PARTITION BY state ORDER BY revenue DESC), then filter with QUALIFY rn <= 3 (a BigQuery feature that filters on window results).
+
+6. Seller scorecard (HAVING, RANK vs DENSE_RANK)
+For sellers with at least 50 delivered orders, show the order count and on-time rate, then rank them from worst on-time rate to best. Include both RANK() and DENSE_RANK() and explain the difference in the output.
+Hint: one order can include items from several sellers, so count DISTINCT order_id.
+
+Level 3: harder patterns
+
+7. What's missing (anti-joins)
+Find delivered orders that have no review at all. Write it two ways: with LEFT JOIN ... WHERE ... IS NULL, and with NOT EXISTS. Both should return the same count.
+
+8. Pivot (conditional aggregation and PIVOT)
+Build a table with one row per customer state and one column per year (2017, 2018) showing the on-time rate. Write it once with COUNTIF(...) / COUNT(...) per year, and once with BigQuery's PIVOT operator.
+
+9. Percentiles (distribution, not just averages)
+For each customer state, show the median and 90th-percentile delivery days alongside the average. Which states have a long "tail" of very slow deliveries?
+Hint: APPROX_QUANTILES(delivery_days, 100)[OFFSET(50)] gives the median.
+
+10. Cohort retention (boss level: everything combined)
+Using customer_unique_id, find each customer's first-purchase month (their cohort). For each cohort, count customers and what share placed another order within 90 days of their first. Then compare retention for customers whose first order was late vs on time.
+Hint: ROW_NUMBER() to find the first order, LEAD() to find the next order date. This is a real question from Section 3 of your project brief.

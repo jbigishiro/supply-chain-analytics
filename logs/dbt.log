@@ -1,0 +1,32 @@
+[0m14:54:58.963920 [debug] [MainThread]: Sending event: {'category': 'dbt', 'action': 'invocation', 'label': 'start', 'context': [<snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x7a33b85d3350>, <snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x7a33b8dc93a0>, <snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x7a33b8cc1a60>]}
+
+
+============================== 14:54:58.967958 | 75236810-5795-49f7-b5f9-1fa8b88d7ad2 ==============================
+[0m14:54:58.967958 [info ] [MainThread]: Running with dbt=1.12.5
+[0m14:54:58.968533 [debug] [MainThread]: running dbt with arguments {'quiet': 'False', 'static_parser': 'True', 'use_experimental_parser': 'False', 'empty': 'None', 'hints_enabled': 'True', 'log_cache_events': 'False', 'write_json': 'True', 'cache_selected_only': 'False', 'no_print': 'None', 'indirect_selection': 'eager', 'fail_fast': 'False', 'invocation_command': 'dbt test --select stg_orders', 'log_path': 'logs', 'profiles_dir': '/home/justin/.dbt', 'use_colors': 'True', 'warn_error_options': 'WarnErrorOptionsV2(error=[], warn=[], silence=[])', 'log_format': 'default', 'version_check': 'True', 'warn_error': 'None', 'send_anonymous_usage_stats': 'True', 'target_path': 'None', 'introspect': 'True', 'debug': 'False', 'maximum_seed_size_mib': '1', 'printer_width': '80', 'partial_parse': 'True'}
+[0m14:54:58.969011 [error] [MainThread]: [[31mERROR[0m]: Encountered an error:
+Runtime Error
+  No dbt_project.yml found at expected path /home/justin/supply-chain-analytics/dbt_project.yml
+  Verify that each entry within packages.yml (and their transitive dependencies) contains a file named dbt_project.yml
+  
+[0m14:54:58.969837 [debug] [MainThread]: Resource report: {"command_name": "test", "command_success": false, "command_wall_clock_time": 0.08002172, "process_in_blocks": "0", "process_kernel_time": 0.298898, "process_mem_max_rss": "124268", "process_out_blocks": "0", "process_user_time": 2.869429}
+[0m14:54:58.970299 [debug] [MainThread]: Command `dbt test` failed at 14:54:58.970185 after 0.08 seconds
+[0m14:54:58.970764 [debug] [MainThread]: Sending event: {'category': 'dbt', 'action': 'invocation', 'label': 'end', 'context': [<snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x7a33b7d16c90>, <snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x7a33b8eb4d70>, <snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x7a33b8ded8e0>]}
+[0m14:54:58.971119 [debug] [MainThread]: Flushing usage events
+[0m14:54:59.475536 [debug] [MainThread]: An error was encountered while trying to flush usage events
+[0m10:59:06.063748 [debug] [MainThread]: Sending event: {'category': 'dbt', 'action': 'invocation', 'label': 'start', 'context': [<snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x7f8b1d12d2e0>, <snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x7f8b1f84e3c0>, <snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x7f8b1d0c7b00>]}
+
+
+============================== 10:59:06.070133 | 25cb95d0-24c3-4a9f-8fba-d6a6ec394b7a ==============================
+[0m10:59:06.070133 [info ] [MainThread]: Running with dbt=1.12.5
+[0m10:59:06.070916 [debug] [MainThread]: running dbt with arguments {'static_parser': 'True', 'warn_error': 'None', 'use_colors': 'True', 'quiet': 'False', 'log_cache_events': 'False', 'cache_selected_only': 'False', 'warn_error_options': 'WarnErrorOptionsV2(error=[], warn=[], silence=[])', 'introspect': 'True', 'version_check': 'True', 'write_json': 'True', 'profiles_dir': '/home/justin/.dbt', 'partial_parse': 'True', 'indirect_selection': 'eager', 'fail_fast': 'False', 'target_path': 'None', 'empty': 'False', 'hints_enabled': 'True', 'invocation_command': 'dbt run --select stg_customers', 'use_experimental_parser': 'False', 'log_format': 'default', 'log_path': 'logs', 'debug': 'False', 'no_print': 'None', 'send_anonymous_usage_stats': 'True', 'maximum_seed_size_mib': '1', 'printer_width': '80'}
+[0m10:59:06.071611 [error] [MainThread]: [[31mERROR[0m]: Encountered an error:
+Runtime Error
+  No dbt_project.yml found at expected path /home/justin/supply-chain-analytics/dbt_project.yml
+  Verify that each entry within packages.yml (and their transitive dependencies) contains a file named dbt_project.yml
+  
+[0m10:59:06.072670 [debug] [MainThread]: Resource report: {"command_name": "run", "command_success": false, "command_wall_clock_time": 0.08911617, "process_in_blocks": "0", "process_kernel_time": 0.295201, "process_mem_max_rss": "124248", "process_out_blocks": "0", "process_user_time": 3.752702}
+[0m10:59:06.073105 [debug] [MainThread]: Command `dbt run` failed at 10:59:06.073004 after 0.09 seconds
+[0m10:59:06.073473 [debug] [MainThread]: Sending event: {'category': 'dbt', 'action': 'invocation', 'label': 'end', 'context': [<snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x7f8b1d12d2e0>, <snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x7f8b1d0c6210>, <snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x7f8b1c3a6a80>]}
+[0m10:59:06.073933 [debug] [MainThread]: Flushing usage events
+[0m10:59:06.613891 [debug] [MainThread]: An error was encountered while trying to flush usage events
