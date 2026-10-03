@@ -8,8 +8,8 @@ by_zip AS (
 
     SELECT
         zip_code_prefix,
-        AVG(latitude) AS avg_latitude,
-        AVG(longitude) AS avg_longitude,
+        AVG(latitude) AS latitude,
+        AVG(longitude) AS longitude,
         count(*) AS n_points
     FROM geolocation
     WHERE latitude BETWEEN -33.75 AND 5.27 

@@ -1,0 +1,28 @@
+version: 2
+
+models:
+  - name: dim_date
+    description: One row per calendar day, Sep 2016 – Dec 2018.
+    columns:
+      - name: date_day
+        data_tests: [unique, not_null]
+
+  - name: dim_customers
+    description: One row per person (customer_unique_id), with latest address, coordinates, and order history.
+    columns:
+      - name: customer_unique_id
+        data_tests: [unique, not_null]
+
+  - name: dim_products
+    description: One row per product, with English category name and package size.
+    columns:
+      - name: product_id
+        data_tests: [unique, not_null]
+      - name: category_name
+        data_tests: [not_null]
+
+  - name: dim_sellers
+    description: One row per seller, with location and coordinates.
+    columns:
+      - name: seller_id
+        data_tests: [unique, not_null]
