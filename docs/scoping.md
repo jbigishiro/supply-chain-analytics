@@ -55,10 +55,15 @@ Order status: 96,478 delivered (97.0%), 1,234 canceled or unavailable (1.2%),
 3. **Canceled and unavailable orders** are reported separately as a fulfillment failure rate.
 4. **In-progress orders** will be checked for age; long-overdue orders will be treated
    as failed deliveries rather than silently dropped.
-5. **Timeline anomalies:** 166 orders were handed to the carrier before purchase. They
-   are flagged (`has_valid_timeline = false`), kept for on-time rate, and excluded from
-   stage-duration analysis. 0 orders were delivered before purchase.
+5. **Timeline anomalies:** 1,382 orders (1.4%) have timestamps out of sequence:
+   - 1,359 were handed to the carrier before approval (including 166 before purchase),
+     likely because approval records payment confirmation, which can lag shipping.
+   - 23 were delivered before the carrier handoff.
+   - 0 were approved before purchase; 0 were delivered before purchase.
 
+   These orders are flagged (`has_valid_timeline = false` in `int_orders_enriched`),
+   kept for on-time rate and delivery time (purchase and delivery dates are sound),
+   and excluded from stage-duration analysis.
 ## Out of scope
 - Carrier-level performance (no carrier data)
 - Profitability (no cost data beyond freight)
