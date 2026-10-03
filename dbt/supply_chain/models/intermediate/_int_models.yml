@@ -1,0 +1,33 @@
+version: 2
+
+models:
+  - name: int_order_reviews_latest
+    description: One row per order — the most recently answered review.
+    columns:
+      - name: order_id
+        data_tests:
+          - unique
+          - not_null
+
+  - name: int_geolocation_by_zip
+    description: one row by zip code
+    columns:
+      - name: zip_code_prefix
+        data_tests:
+          - unique
+          - not_null
+
+  - name: int_orders_enriched
+    description: One row per order — fulfillment timeline, stage durations, delivery-promise metrics, and scope flags. Filter on is_delivered for delivery metrics.
+    columns:
+      - name: order_id
+        description: Primary key. A failing unique test here means a join fanned out.
+        data_tests:
+          - unique
+          - not_null
+      - name: is_delivered
+        data_tests:
+          - not_null
+      - name: has_valid_timeline
+        data_tests:
+          - not_null
