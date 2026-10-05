@@ -1,6 +1,3 @@
-# Supply Chain Analytics
-![dbt CI](https://github.com/jbigishiro/supply-chain-analytics/actions/workflows/dbt-ci.yml/badge.svg)
-End-to-end fulfillment analytics on 100k Olist e-commerce orders.
 
 # Supply Chain Analytics
 
