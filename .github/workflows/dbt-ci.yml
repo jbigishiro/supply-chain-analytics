@@ -1,0 +1,38 @@
+name: dbt CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  dbt-build:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: dbt/supply_chain
+
+    steps:
+      - name: Check out the code
+        uses: actions/checkout@v4
+
+      - name: Authenticate to Google Cloud (keyless)
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: PASTE_PROVIDER_NAME_HERE
+          service_account: dbt-ci@supply-chain-analytics-510105.iam.gserviceaccount.com
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dbt
+        run: pip install dbt-bigquery==1.12.1
+
+      - name: Build and test all models
+        run: dbt build --profiles-dir ci --target ci
