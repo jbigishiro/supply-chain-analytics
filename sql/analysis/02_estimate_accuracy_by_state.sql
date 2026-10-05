@@ -1,3 +1,5 @@
+-- 01: estimate accuracy by state, Brazil
+
 with by_state as (
 
     select
