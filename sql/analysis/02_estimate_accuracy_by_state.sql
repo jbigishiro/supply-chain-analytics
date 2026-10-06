@@ -1,4 +1,4 @@
--- 01: estimate accuracy by state, Brazil
+-- 02: estimate accuracy by state, Brazil
 
 with by_state as (
 
