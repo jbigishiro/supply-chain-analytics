@@ -53,8 +53,11 @@ Order status: 96,478 delivered (97.0%), 1,234 canceled or unavailable (1.2%),
 2. **Delivery metrics use delivered orders with a delivery date.** 8 orders marked
    `delivered` have no delivery date and are excluded.
 3. **Canceled and unavailable orders** are reported separately as a fulfillment failure rate.
-4. **In-progress orders** will be checked for age; long-overdue orders will be treated
-   as failed deliveries rather than silently dropped.
+4. **In-progress orders are treated as failed fulfillments.** At extraction (~Oct 17, 2018),
+   1,728 of 1,729 orders still marked shipped/invoiced/processing/created/approved were more
+   than 30 days past their estimated delivery date (median 9–18 months since purchase).
+   Including them, the true fulfillment failure rate is 3.0% (2,962 orders), not the 1.2%
+   implied by canceled/unavailable statuses alone. 1,107 of them had been handed to a carrier.
 5. **Timeline anomalies:** 1,382 orders (1.4%) have timestamps out of sequence:
    - 1,359 were handed to the carrier before approval (including 166 before purchase),
      likely because approval records payment confirmation, which can lag shipping.
