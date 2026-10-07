@@ -1,32 +1,49 @@
--- 10: weekly performance around Black Friday 2017 (Nov 24)
--- Population: delivered orders with valid timelines, full weeks Oct 2, 2017 – Jan 28, 2018
 
-with orders_by_week as (
+-- 12A: review score by days late (capped at ±15)
 
-    select
-        d.week_start,
-        o.is_on_time,
-        o.missed_shipping_deadline,
-        o.seller_processing_days,
-        o.carrier_transit_days
-
-    from `supply-chain-analytics-510105.dbt_dev_marts.fact_orders` as o
-    inner join `supply-chain-analytics-510105.dbt_dev_marts.dim_date` as d
-        on o.purchase_date = d.date_day
-    where o.is_delivered
-      and o.has_valid_timeline
-      and o.purchase_date between date '2017-10-02' and date '2018-01-28'
-
+with orders as(
+    select 
+        order_id,
+        is_on_time,
+        greatest(least(days_late, 15), -15) as days_late_capped,
+        review_score
+    from `supply-chain-analytics-510105.dbt_dev_marts.fact_orders`
+    where is_delivered
+        and is_in_analysis_window
+        and has_review
 )
 
-select
-    week_start,
-    count(*)                                                    as orders,
-    round(countif(is_on_time) / count(*) * 100, 1)              as on_time_pct,
-    round(countif(missed_shipping_deadline) / count(*) * 100, 1) as missed_deadline_pct,
-    round(avg(seller_processing_days), 1)                       as avg_seller_processing_days,
-    round(avg(carrier_transit_days), 1)                         as avg_carrier_transit_days
+select 
+    days_late_capped,
+    count(*)                                               as orders,
+    round(avg(review_score), 2)                            as avg_review_score, 
+    round(countif(review_score <= 2) / count(*) * 100, 1)  as pct_1_2_star
 
-from orders_by_week
-group by week_start
-order by week_start
+    from orders
+    group by days_late_capped
+    order by days_late_capped;
+
+-- 12B: share of each review score coming from late orders
+
+with reviewed_orders as(
+    select 
+        order_id,
+        is_on_time,
+        review_score
+    from `supply-chain-analytics-510105.dbt_dev_marts.fact_orders`
+    where is_delivered
+        and is_in_analysis_window
+        and has_review
+)
+
+select 
+    review_score,
+    count(*)                                               as reviews,
+    round(countif(not is_on_time) / count(*) * 100, 1)     as pct_from_late_orders,
+    round(count(*)/sum(count(*)) over ()*100, 1)           as share_of_reviews_pct,
+    
+from reviewed_orders
+group by review_score
+order by review_score
+
+
