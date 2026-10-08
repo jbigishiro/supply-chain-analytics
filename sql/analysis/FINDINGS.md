@@ -296,9 +296,10 @@ another order 1–180 days after the first.
 
 - The gradient points the expected way: the later the first order, the less likely a
   return (−24% relative for 4+ days late).
-- **It is not statistically significant.** Two-proportion z-test: on time vs all late,
-  p ≈ 0.10; on time vs 4+ days late, p ≈ 0.09. The 95% confidence interval for the
-  difference includes zero (see `notebooks/15_repeat_significance`).
+- **It is not statistically significant.** Two-proportion z-test, on time vs all late:
+  z = 1.64, p = 0.101; 95% confidence interval for the difference −0.09 to +0.77
+  percentage points, which includes zero. On time vs 4+ days late: p ≈ 0.09 (see
+  `notebooks/15_repeat_significance`).
 - Conclusion: the data suggests late first deliveries reduce repeat purchases, but the
   evidence is not conclusive.
 - **The bigger finding is the level: only 2% of customers return within six months**,
