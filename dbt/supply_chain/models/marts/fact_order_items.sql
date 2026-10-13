@@ -30,6 +30,7 @@ select
     i.product_id,
     i.seller_id,
     o.customer_unique_id,
+    o.customer_state,
     o.purchase_date,
 
     -- money
