@@ -1,4 +1,3 @@
-
 # Supply Chain Analytics
 
 ![dbt CI](https://github.com/jbigishiro/supply-chain-analytics/actions/workflows/dbt-ci.yml/badge.svg)
@@ -40,7 +39,7 @@ Kaggle CSVs ──► BigQuery (olist_raw) ──► dbt: staging ──► inte
 | Intermediate | `int_orders_enriched`, `int_order_reviews_latest`, `int_geolocation_by_zip` | Stage durations, lateness, on-time and timeline-validity flags, review deduplication, coordinates per zip |
 | Marts | `fact_orders`, `fact_order_items`, `dim_customers`, `dim_sellers`, `dim_products`, `dim_date` | Star schema read by analysis and dashboards — see the **[ERD](docs/erd.md)** |
 
-**Stack:** Google BigQuery · dbt Core · Python · GitHub Actions
+**Stack:** Google BigQuery · dbt Core · SQL · Python (pandas, statsmodels) · GitHub Actions · Tableau
 
 ## Data quality
 
@@ -66,34 +65,73 @@ Issues found and how they are handled:
 | Multiple reviews for one order | — | Latest review kept per order |
 | Thin data in 2016 and Sep–Oct 2018 | 349 | Analysis window set to Jan 2017 – Aug 2018 (99.6% of orders) |
 
-## Early findings
+## Analysis
 
-- **Customers punish broken promises, not slow delivery.** Average review scores slide
-  only gently while orders arrive before the estimated date (4.31 → 4.03), then fall
-  sharply once an order is late: 3.29 at 1–3 days late, 2.10 at 4–7 days, 1.70 beyond
-  a week.
-- **The delivery promise is heavily padded.** 79% of delivered orders arrive a week or
-  more before the estimated date — which keeps the on-time rate high (93.2%) but may
-  cost conversions at checkout.
+Sixteen SQL analyses in [`sql/analysis/`](sql/analysis/) answer the Head of Operations'
+questions on fulfillment performance (01–11) and on customer experience and business
+metrics (12–16). Every metric follows the written
+**[metric definitions](docs/metric_definitions.md)**, and every result is summarized in
+**[FINDINGS.md](sql/analysis/FINDINGS.md)**.
 
-Full analysis, dashboards, and recommendations are in progress (see roadmap).
+| Area | Queries |
+|---|---|
+| Delivery promise | 01 on-time rate by month · 02 estimate accuracy by state |
+| Fulfillment stages | 03 stage durations · 04 which stage makes orders late · 05 seller deadline misses |
+| Geography and distance | 06 performance by customer and seller state · 07 distance effects |
+| Sellers and products | 08 seller scorecard · 09 product weight and category · 10 Black Friday seasonality · 11 stuck orders |
+| Customers and business | 12 reviews vs lateness · 13 monthly GMV and AOV · 14 revenue vs delivery · 15 repeat purchases (with significance test) · 16 cohort retention |
+
+## Key findings
+
+- **Customers punish broken promises, not slow delivery.** Review scores stay around
+  4.1–4.3 while orders arrive early, then lose about half a star per day late: by 3 days
+  late, half of all reviews are 1–2 stars.
+- **About 7% of delivered orders arrive late, and a further 1.7% of orders never arrive.**
+  Counting stuck orders, about 91.6% of promises are kept, not the headline 93.2%; the
+  true fulfillment failure rate is 3.0%, not 1.2%.
+- **Carriers cause most of the delay; sellers tip orders over the edge.** 87% of the extra
+  time in late orders is carrier transit, while a missed seller shipping deadline makes an
+  order about 4× more likely to be late.
+- **Lateness depends on *where* and *when*, not *what*.** Destination state and purchase
+  month swing the on-time rate by 18–19 points; product weight and category by 3–4.
+- **Half of all late orders go to two states.** Rio de Janeiro, the second-largest revenue
+  state, is 87.9% on time vs São Paulo's 95.5%, and distance does not explain the gap.
+- **The delivery promise is badly calibrated:** 79% of orders arrive a week or more early,
+  yet the Northeast has the worst on-time rates in the country.
+- **Almost no one buys twice** (2% within six months). Late first deliveries point toward
+  fewer repeat purchases, but the difference is not statistically significant
+  (p = 0.10). Delivery pays off mainly through reputation.
+
+## Dashboards
+
+- **[Tableau: Operations Overview](https://public.tableau.com/app/profile/justin.bigishiro/viz/OlistOperationsDashborad)** — KPIs, monthly trend,
+  fulfillment-stage breakdown and late orders by state, with date, state and category
+  filters.
+- **[Tableau: Seller Scorecard](https://public.tableau.com/app/profile/justin.bigishiro/viz/OlistOperationsDashborad)** — sellers with 50+ delivered orders,
+  ranked by late orders, with on-time rate, missed-deadline rate and reviews.
+
+Every dashboard KPI was checked against the warehouse: 96,203 delivered orders, 93.2% on
+time and 12.5 average delivery days in the analysis window. The mart tables are exported
+for Tableau Public with [`scripts/export_marts.py`](scripts/export_marts.py).
 
 ## Repository structure
 
 ```
 supply-chain-analytics/
 ├── .github/workflows/dbt-ci.yml   # CI: build and test every model on every push
-├── scripts/load_raw.py            # load the 9 CSVs into BigQuery
+├── scripts/
+│   ├── load_raw.py                # load the 9 CSVs into BigQuery
+│   └── export_marts.py            # export mart tables to CSV for Tableau
 ├── dbt/supply_chain/
 │   ├── models/staging/            # 9 staging models + sources
 │   ├── models/intermediate/       # business logic
 │   ├── models/marts/              # star schema
 │   ├── tests/                     # custom data quality tests
 │   └── ci/profiles.yml            # CI connection (no secrets)
-├── sql/                           # analysis queries
-├── notebooks/                     # modeling and forecasting
+├── sql/analysis/                  # 16 analysis queries + FINDINGS.md
+├── notebooks/                     # significance tests, modeling, forecasting
 ├── dashboards/                    # Tableau, Power BI, Excel
-└── docs/                          # scoping doc, ERD, memo
+└── docs/                          # scoping, metric definitions, ERD, memo
 ```
 
 ## How to run it
@@ -126,9 +164,11 @@ Note: the BigQuery free sandbox deletes tables after 60 days; re-run
 
 - [x] Scoping and data profiling
 - [x] Data warehouse: staging, intermediate, star schema, tests, CI
-- [ ] Fulfillment performance analysis (SQL)
-- [ ] Customer experience and business metrics
-- [ ] Dashboards: Tableau, Power BI, Excel operations workbook
+- [x] Fulfillment performance analysis (SQL)
+- [x] Customer experience and business metrics
+- [x] Tableau dashboards: operations overview and seller scorecard
+- [ ] Power BI operations overview
+- [ ] Excel operations workbook
 - [ ] Late-delivery prediction, demand forecasting, seller segmentation, A/B test design
 - [ ] Text-to-SQL assistant
 - [ ] Memo to the Head of Operations and five-slide readout
