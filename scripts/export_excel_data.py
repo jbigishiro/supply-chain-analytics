@@ -23,7 +23,8 @@ select
     if(o.is_on_time, 0, 1)                                 as late,
     if(logical_or(i.missed_shipping_deadline), 1, 0)       as missed_deadline,
     o.review_score,
-    round(o.total_delivery_days, 1)                        as delivery_days
+    round(o.total_delivery_days, 1)                        as delivery_days,
+    if(row_number() over (partition by i.order_id order by i.seller_id) = 1, 1, 0) as order_row
 
 from `{MARTS}.fact_order_items` as i
 inner join `{MARTS}.fact_orders` as o using (order_id)
