@@ -3,9 +3,9 @@
 ![dbt CI](https://github.com/jbigishiro/supply-chain-analytics/actions/workflows/dbt-ci.yml/badge.svg)
 
 End-to-end fulfillment analytics on 100k Olist e-commerce orders: a tested cloud data
-warehouse, delivery-performance analysis, dashboards, and predictive models that answer
-one question for a Head of Operations — **how reliably do we deliver on our promise,
-and what should we change?**
+warehouse, delivery-performance analysis, dashboards in three tools, and a predictive
+model — all answering one question for a Head of Operations: **how reliably do we deliver
+on our promise, and what should we change?**
 
 ## The business problem
 
@@ -13,7 +13,8 @@ On an e-commerce marketplace, what customers remember is whether the package arr
 when promised. Every order leaves a trail of timestamps — purchase, approval, handoff
 to the carrier, delivery — compared against the date the customer was promised. This
 project turns that trail into trusted metrics, explains where and why orders run late,
-and connects delivery performance to customer satisfaction and repeat purchases.
+connects delivery performance to customer satisfaction and repeat purchases, and
+predicts which orders are at risk while there is still time to act.
 
 Stakeholders, questions in scope, data limits, and every analysis decision are recorded
 in the **[scoping document](docs/scoping.md)**.
@@ -28,8 +29,10 @@ translation). Licensed CC BY-NC-SA 4.0 by Olist.
 ## Architecture
 
 ```
-Kaggle CSVs ──► BigQuery (olist_raw) ──► dbt: staging ──► intermediate ──► marts ──► SQL analysis / dashboards / models
-                 all columns STRING        cast & rename    business logic    star schema
+Kaggle CSVs ──► BigQuery (olist_raw) ──► dbt: staging ──► intermediate ──► marts ──► SQL analysis
+                 all columns STRING        cast & rename    business logic    star schema   dashboards
+                                                                                  │        Excel workbook
+                                                                                  └──► ml ──► prediction model
 ```
 
 | Layer | Models | Purpose |
@@ -38,8 +41,10 @@ Kaggle CSVs ──► BigQuery (olist_raw) ──► dbt: staging ──► inte
 | Staging | 9 `stg_` views | One model per source table: types cast, columns renamed, nothing else |
 | Intermediate | `int_orders_enriched`, `int_order_reviews_latest`, `int_geolocation_by_zip` | Stage durations, lateness, on-time and timeline-validity flags, review deduplication, coordinates per zip |
 | Marts | `fact_orders`, `fact_order_items`, `dim_customers`, `dim_sellers`, `dim_products`, `dim_date` | Star schema read by analysis and dashboards — see the **[ERD](docs/erd.md)** |
+| ML | `ml_late_delivery_features` | One row per delivered order with features known at approval time — the input to the prediction model |
 
-**Stack:** Google BigQuery · dbt Core · SQL · Python (pandas, statsmodels) · GitHub Actions · Tableau
+**Stack:** Google BigQuery · dbt Core · SQL · Python (pandas, scikit-learn, statsmodels) ·
+GitHub Actions · Tableau · Power BI · Excel
 
 ## Data quality
 
@@ -62,6 +67,7 @@ Issues found and how they are handled:
 | Handed to carrier before approval (incl. 166 before purchase) | 1,359 | Flagged; excluded from stage durations, kept for on-time rate |
 | Delivered before carrier handoff | 23 | Same as above |
 | Marked delivered but no delivery date | 8 | Excluded from delivery metrics |
+| Still "in progress" months after their estimated date | 1,728 | Treated as failed fulfillments in the failure rate |
 | Multiple reviews for one order | — | Latest review kept per order |
 | Thin data in 2016 and Sep–Oct 2018 | 349 | Analysis window set to Jan 2017 – Aug 2018 (99.6% of orders) |
 
@@ -102,17 +108,65 @@ metrics (12–16). Every metric follows the written
   fewer repeat purchases, but the difference is not statistically significant
   (p = 0.10). Delivery pays off mainly through reputation.
 
-## Dashboards
+## Dashboards and operations workbook
 
-- **[Tableau: Operations Overview](https://public.tableau.com/app/profile/justin.bigishiro/viz/OlistOperationsDashborad)** — KPIs, monthly trend,
-  fulfillment-stage breakdown and late orders by state, with date, state and category
-  filters.
-- **[Tableau: Seller Scorecard](https://public.tableau.com/app/profile/justin.bigishiro/viz/OlistOperationsDashborad)** — sellers with 50+ delivered orders,
-  ranked by late orders, with on-time rate, missed-deadline rate and reviews.
+The same metric definitions are implemented in three tools, and each was checked against
+the warehouse before use (96,203 delivered orders, 93.2% on time and 12.5 average
+delivery days in the analysis window; Rio de Janeiro 12,310 orders, 87.9% on time,
+1,495 late).
 
-Every dashboard KPI was checked against the warehouse: 96,203 delivered orders, 93.2% on
-time and 12.5 average delivery days in the analysis window. The mart tables are exported
-for Tableau Public with [`scripts/export_marts.py`](scripts/export_marts.py).
+- **Tableau** (published on Tableau Public)
+  - **[Operations Overview](https://public.tableau.com/app/profile/justin.bigishiro/viz/OlistOperationsDashborad)** — KPIs, monthly trend, fulfillment-stage
+    breakdown and late orders by state, with date, state and category filters.
+  - **[Seller Scorecard](https://public.tableau.com/app/profile/justin.bigishiro/viz/OlistOperationsDashborad)** — sellers with 50+ delivered orders, ranked by
+    late orders, with on-time rate, missed-deadline rate and reviews.
+  - Mart tables are exported for Tableau Public with
+    [`scripts/export_marts.py`](scripts/export_marts.py).
+- **Power BI** — **[Operations Overview](dashboards/olist_operations.pbix)**, connected
+  directly to BigQuery. A single star-schema model (five relationships, one bidirectional
+  link between items and orders) lets the date, state and category slicers filter every
+  visual on the page, including the seller table.
+- **Excel** — **[Operations workbook](dashboards/olist_operations_workbook.xlsx)**, built from
+  [`scripts/export_excel_data.py`](scripts/export_excel_data.py):
+  - *Seller Scorecard* — pivot table of orders, late orders, on-time %, missed-deadline %
+    and reviews per seller; seller city and state looked up from the Sellers sheet with
+    `XLOOKUP`; an action column that flags sellers who miss 15%+ of deadlines for coaching.
+  - *State On-time* — spilling `SUMIFS` formulas with an order-level flag so multi-seller
+    orders are counted once; color scale and data bars.
+  - *Weekly Summary* — a one-page report: pick a week from a dropdown and the KPIs,
+    week-over-week change and the five sellers with the most late orders update
+    automatically. Checked against the Black Friday week (2,915 orders, 503 late, 82.7%).
+
+![Power BI operations overview](dashboards/powerbi_operations_overview.png)
+
+## Predictive analytics: late-delivery risk at approval time
+
+**[Notebook](notebooks/late_delivery_model.ipynb)** · features from
+`ml_late_delivery_features` (96,189 delivered orders, 6.8% late).
+
+- **No leakage:** only information available when an order is approved is used — the
+  delivery promise, route and geography, order contents, and the seller's track record
+  computed only from orders *delivered before* this order's approval.
+- **Time-based validation:** train Jan–Dec 2017 (5.7% late) · validation Jan–Mar 2018
+  (12.9% late, the carrier crisis) · test Apr–Jul 2018 (4.0% late). August 2018 is
+  excluded because it was incomplete at extraction.
+
+| Test set (Apr–Jul 2018) | ROC AUC | PR AUC | Late orders caught in top 10% of risk |
+|---|---|---|---|
+| Random | 0.50 | 0.040 | 10% |
+| Baseline: seller's past late rate | 0.548 | 0.048 | 17% |
+| **Logistic regression** | **0.734** | **0.106** | **32%** |
+
+- Logistic regression beat gradient boosting on validation (PR AUC 0.285 vs 0.213): the
+  simpler model generalized better to the 2018 distribution shift.
+- **Strongest warning signs** (permutation importance): the delivery promise — orders
+  promised more than about four weeks are roughly half as likely to be late — then
+  geography (distance, same-state, customer and seller state), then the seller's history
+  of missed shipping deadlines. Product category, weight and value matter little,
+  consistent with the SQL analysis.
+- **Use:** most lateness arises in carrier transit after approval, which no approval-time
+  model can see. The model suits low-cost actions — proactive delay messages, seller
+  follow-ups — not expensive ones such as upgrading shipping for every flagged order.
 
 ## Repository structure
 
@@ -121,16 +175,18 @@ supply-chain-analytics/
 ├── .github/workflows/dbt-ci.yml   # CI: build and test every model on every push
 ├── scripts/
 │   ├── load_raw.py                # load the 9 CSVs into BigQuery
-│   └── export_marts.py            # export mart tables to CSV for Tableau
+│   ├── export_marts.py            # export mart tables to CSV for Tableau
+│   └── export_excel_data.py       # export order-seller data for the Excel workbook
 ├── dbt/supply_chain/
 │   ├── models/staging/            # 9 staging models + sources
 │   ├── models/intermediate/       # business logic
 │   ├── models/marts/              # star schema
+│   ├── models/ml/                 # approval-time features for the prediction model
 │   ├── tests/                     # custom data quality tests
 │   └── ci/profiles.yml            # CI connection (no secrets)
 ├── sql/analysis/                  # 16 analysis queries + FINDINGS.md
-├── notebooks/                     # significance tests, modeling, forecasting
-├── dashboards/                    # Tableau, Power BI, Excel
+├── notebooks/                     # significance test, late-delivery model, outputs/
+├── dashboards/                    # Power BI .pbix, Excel workbook, screenshots
 └── docs/                          # scoping, metric definitions, ERD, memo
 ```
 
@@ -141,7 +197,8 @@ Requires Python 3.11+, the Google Cloud CLI, and a Google Cloud project with Big
 ```bash
 # 1. environment
 python3 -m venv .venv && source .venv/bin/activate
-pip install dbt-bigquery pandas jupyter
+pip install dbt-bigquery pandas jupyter db-dtypes google-cloud-bigquery-storage \
+            scikit-learn statsmodels matplotlib ipykernel
 
 # 2. authenticate
 gcloud auth application-default login
@@ -149,13 +206,20 @@ gcloud auth application-default login
 # 3. load raw data (download the Kaggle CSVs into data/raw/ first)
 python scripts/load_raw.py
 
-# 4. build and test the warehouse
+# 4. build and test the warehouse, including the ML feature table
 cd dbt/supply_chain
 dbt build
+cd ../..
+
+# 5. exports for Tableau and Excel
+python scripts/export_marts.py
+python scripts/export_excel_data.py
+
+# 6. the prediction model: open notebooks/late_delivery_model.ipynb with the .venv kernel
 ```
 
-Set your own project ID in `scripts/load_raw.py`, `models/staging/_sources.yml`, and
-your dbt profile (`dbt init` creates one; choose the `oauth` method).
+Set your own project ID in the scripts, `models/staging/_sources.yml`, and your dbt
+profile (`dbt init` creates one; choose the `oauth` method).
 
 Note: the BigQuery free sandbox deletes tables after 60 days; re-run
 `scripts/load_raw.py` and `dbt build` to restore them.
@@ -167,9 +231,12 @@ Note: the BigQuery free sandbox deletes tables after 60 days; re-run
 - [x] Fulfillment performance analysis (SQL)
 - [x] Customer experience and business metrics
 - [x] Tableau dashboards: operations overview and seller scorecard
-- [ ] Power BI operations overview
-- [ ] Excel operations workbook
-- [ ] Late-delivery prediction, demand forecasting, seller segmentation, A/B test design
+- [x] Power BI operations overview
+- [x] Excel operations workbook
+- [x] Late-delivery prediction at approval time
+- [ ] Demand forecasting
+- [ ] Seller segmentation
+- [ ] A/B test design
 - [ ] Text-to-SQL assistant
 - [ ] Memo to the Head of Operations and five-slide readout
 
