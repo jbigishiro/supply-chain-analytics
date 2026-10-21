@@ -230,7 +230,7 @@ rate would blame these sellers for a problem they don't cause.
 ## Ask-the-data assistant (text-to-SQL)
 
 **[Evaluation write-up](assistant/EVALUATION.md)** · [`sql_assistant.py`](assistant/sql_assistant.py)
-
+**Five-slide readout:** [docs/readout.pdf](docs/readout.pdf)
 ```bash
 python assistant/sql_assistant.py "What is the on-time rate in Bahia?"
 ```
@@ -335,7 +335,7 @@ Note: the BigQuery free sandbox deletes tables after 60 days; re-run
 - [x] Seller segmentation
 - [x] A/B test design
 - [x] Text-to-SQL assistant with evaluation
-- [ ] Memo to the Head of Operations and five-slide readout
+- [x] Memo to the Head of Operations and five-slide readout
 
 ## Author
 
