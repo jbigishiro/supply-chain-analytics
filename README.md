@@ -3,8 +3,8 @@
 ![dbt CI](https://github.com/jbigishiro/supply-chain-analytics/actions/workflows/dbt-ci.yml/badge.svg)
 
 End-to-end fulfillment analytics on 100k Olist e-commerce orders: a tested cloud data
-warehouse, delivery-performance analysis, dashboards in three tools, and a predictive
-model — all answering one question for a Head of Operations: **how reliably do we deliver
+warehouse, delivery-performance analysis, dashboards in three tools, predictive models,
+an experiment design and a text-to-SQL assistant, all answering one question for a Head of Operations: **how reliably do we deliver
 on our promise, and what should we change?**
 
 ## The business problem
@@ -13,8 +13,9 @@ On an e-commerce marketplace, what customers remember is whether the package arr
 when promised. Every order leaves a trail of timestamps — purchase, approval, handoff
 to the carrier, delivery — compared against the date the customer was promised. This
 project turns that trail into trusted metrics, explains where and why orders run late,
-connects delivery performance to customer satisfaction and repeat purchases, and
-predicts which orders are at risk while there is still time to act.
+connects delivery performance to customer satisfaction and repeat purchases, predicts
+which orders are at risk, forecasts demand, groups sellers by how they fail, designs a
+test of a fix, and lets managers query the warehouse in plain English.
 
 Stakeholders, questions in scope, data limits, and every analysis decision are recorded
 in the **[scoping document](docs/scoping.md)**.
@@ -32,7 +33,8 @@ translation). Licensed CC BY-NC-SA 4.0 by Olist.
 Kaggle CSVs ──► BigQuery (olist_raw) ──► dbt: staging ──► intermediate ──► marts ──► SQL analysis
                  all columns STRING        cast & rename    business logic    star schema   dashboards
                                                                                   │        Excel workbook
-                                                                                  └──► ml ──► prediction model
+                                                                                  ├──► ml ──► prediction, forecast, segmentation
+                                                                                  └──► text-to-SQL assistant (OpenAI)
 ```
 
 | Layer | Models | Purpose |
@@ -41,10 +43,10 @@ Kaggle CSVs ──► BigQuery (olist_raw) ──► dbt: staging ──► inte
 | Staging | 9 `stg_` views | One model per source table: types cast, columns renamed, nothing else |
 | Intermediate | `int_orders_enriched`, `int_order_reviews_latest`, `int_geolocation_by_zip` | Stage durations, lateness, on-time and timeline-validity flags, review deduplication, coordinates per zip |
 | Marts | `fact_orders`, `fact_order_items`, `dim_customers`, `dim_sellers`, `dim_products`, `dim_date` | Star schema read by analysis and dashboards — see the **[ERD](docs/erd.md)** |
-| ML | `ml_late_delivery_features` | One row per delivered order with features known at approval time — the input to the prediction model |
+| ML | `ml_late_delivery_features`, `ml_weekly_demand`, `ml_seller_features` | Model inputs: approval-time features per order; weekly order counts for 6 series; one row per seller with volume, reliability, speed and reviews |
 
 **Stack:** Google BigQuery · dbt Core · SQL · Python (pandas, scikit-learn, statsmodels) ·
-GitHub Actions · Tableau · Power BI · Excel
+GitHub Actions · Tableau · Power BI · Excel · OpenAI API
 
 ## Data quality
 
@@ -75,7 +77,7 @@ Issues found and how they are handled:
 
 Sixteen SQL analyses in [`sql/analysis/`](sql/analysis/) answer the Head of Operations'
 questions on fulfillment performance (01–11) and on customer experience and business
-metrics (12–16). Every metric follows the written
+metrics (12–16); query 17 sets the baselines for the experiment design. Every metric follows the written
 **[metric definitions](docs/metric_definitions.md)**, and every result is summarized in
 **[FINDINGS.md](sql/analysis/FINDINGS.md)**.
 
@@ -168,23 +170,93 @@ delivery days in the analysis window; Rio de Janeiro 12,310 orders, 87.9% on tim
   model can see. The model suits low-cost actions — proactive delay messages, seller
   follow-ups — not expensive ones such as upgrading shipping for every flagged order.
 
-# Weekly demand forecast
+## Demand forecasting
 
-**Goal:** forecast weekly orders placed (all orders and the top 5 categories) 1 and 4 weeks ahead.
-**Data:** `dbt_dev_ml.ml_weekly_demand`, 86 complete weeks (Jan 2017 – Aug 2018).
-**Evaluation:** walk-forward over the last 26 weeks; methods chosen on Mar–May 2018, reported on
-Jun–Aug 2018. Metric: WAPE (absolute error as a share of actual volume).
+**[Notebook](notebooks/demand_forecast.ipynb)** · weekly orders from `ml_weekly_demand`
+(86 weeks, Jan 2017 – Aug 2018) for all orders and the top 5 categories.
 
-| Report weeks (Jun–Aug 2018), average over 6 series | 1 week ahead | 4 weeks ahead |
+- **Walk-forward evaluation** over the last 26 weeks: each forecast uses only the weeks
+  before it. Methods were **selected** on Mar–May 2018 and **reported** on Jun–Aug 2018, so
+  the reported error isn't tuned on the weeks it is measured on.
+- Baselines: last week, 4-week average, same week last year. Models: simple and damped
+  exponential smoothing. Metric: WAPE.
+
+| Horizon | Result |
+|---|---|
+| **1 week ahead** | Exponential smoothing beats the best baseline in **all 6 series** (average WAPE 0.228 vs 0.264). For total orders: **0.162 vs 0.222, 27% less error** |
+| 4 weeks ahead | No model beats the 4-week average (WAPE 0.263). A method that won on the selection weeks lost on the report weeks, so the difference was noise |
+
+**Use:** a one-week-ahead forecast is worth giving sellers and carriers for capacity
+planning; for a month ahead, the 4-week average is as good as anything this data supports.
+
+## Seller segmentation
+
+**[Notebook](notebooks/seller_segmentation.ipynb)** · 803 sellers with 20+ delivered orders
+(88% of orders), k-means on log volume, missed-deadline rate, on-time rate, log processing
+days and review score. k = 5: the best silhouette among k ≥ 3 (0.263), and every segment
+maps to a distinct action. Sellers flagged in the SQL scorecard land where expected.
+
+| Segment | Sellers | Share of orders | Profile | Action |
+|---|---|---|---|---|
+| Core high-volume | 167 | **59%** | Median 186 orders, 93.9% on time | **Protect:** carrier capacity, peak planning |
+| Reliable small sellers | 320 | 18% | Best on every measure: 96.6% on time, 2.9% missed deadlines, review 4.38 | **Promote:** placement, growth incentives |
+| Ship on time, arrive late | 135 | 7% | Hand off in 2.1 days, yet 88.6% on time and review 3.93 | **Fix the carrier leg and estimates**, not the seller |
+| Slipping on deadlines | 134 | 11% | 20.4% missed deadlines | **Coach:** reminders, handling-time review |
+| Chronic late shippers | 47 | 5% | 38.2% missed deadlines, 6.9 processing days, review 3.56 | **Intervene:** performance plan |
+
+**Root cause of "ship on time, arrive late":** not geography (same distance and customer mix
+as other segments). These orders spend the longest time with the carrier (10.6 vs 8.7 days)
+and are promised the shortest window (23.6 vs 25.4 days). A scorecard based only on on-time
+rate would blame these sellers for a problem they don't cause.
+
+## Experiment design: proactive delay notification
+
+**[Design document](docs/experiment_design.md)** · baselines from
+[`17_experiment_baseline.sql`](sql/analysis/17_experiment_baseline.sql) · sample size in
+[the notebook](notebooks/experiment_design.ipynb).
+
+- **Trigger:** order not yet delivered 2 days before its estimated date. It flags 11% of
+  orders (176 a week), **76% of which end up late**, and it catches every late order.
+- **Treatment:** an apology and a revised date. **Control:** today's experience. Randomized
+  50/50 by customer.
+- **Primary metric:** share of 1–2 star reviews among triggered orders (baseline **52.4%**, vs
+  9.6% for all other orders). **Guardrails:** review rate, cancellations, and satisfaction of
+  triggered orders that arrive on time anyway.
+- **Sample size:** α = 0.05, power 0.80, minimum detectable effect **5 points** (52.4% → 47.4%):
+  **1,596 orders per arm, about 18 weeks** at 2018 volume. A 7.5-point MDE would take 8 weeks.
+- Why not test a shorter delivery estimate? Its primary metric would be checkout
+  conversion, and the data has no checkout events.
+
+## Ask-the-data assistant (text-to-SQL)
+
+**[Evaluation write-up](assistant/EVALUATION.md)** · [`sql_assistant.py`](assistant/sql_assistant.py)
+
+```bash
+python assistant/sql_assistant.py "What is the on-time rate in Bahia?"
+```
+
+The assistant turns a plain-English question into BigQuery SQL using the live schema, a set
+of business rules (grain, analysis window, delivered-only metrics, revenue exclusions) and
+three examples. Only a single read-only query runs, after a BigQuery dry run and with a 1 GB
+scan cap.
+
+**Evaluation:** 25 questions with verified gold answers plus 10 held-out questions written
+after the error analysis; execution accuracy, several runs per configuration.
+
+| Prompt | Main set | Held-out |
 |---|---|---|
-| Same week last year | ~0.45–0.66 (fails: 2017 was a growth year) | same |
-| 4-week average (baseline) | 0.264 | **0.263** |
-| Simple exponential smoothing | **0.228** | 0.280 |
+| Schema only | 36% | — |
+| + business rules (v1) | 59% | 37% |
+| + column semantics (v2) | 75%\* | **55%** (gpt-4o-mini) · **60%** (gpt-4o) |
 
-- **1 week ahead:** SES beats the baseline in all six series (−14% error on average, −27% for total orders).
-- **4 weeks ahead:** no method beat the 4-week average; trend models extrapolated noise in flat 2018 demand.
-- **Limits:** one Black Friday in the data and no peak in the test period, so peak forecasting is untested.
-  Recommendation: 4-week average for planning, with a manual uplift for known peaks (Black Friday ran ~2.3× the prior week in 2017).
+\* optimistic: v2's rules came from the main set's failures.
+
+- **Business context, not SQL skill, is the bottleneck:** rules nearly double accuracy,
+  entirely on medium and hard questions.
+- **The v2 rules generalize** (+18 points on unseen questions).
+- **The main remaining error is fan-out** (averaging order-level fields over item rows). It
+  survives every prompt and both models, so the fix belongs in the data model: marts at
+  order × seller and order × category grain.
 
 ## Repository structure
 
@@ -199,13 +271,15 @@ supply-chain-analytics/
 │   ├── models/staging/            # 9 staging models + sources
 │   ├── models/intermediate/       # business logic
 │   ├── models/marts/              # star schema
-│   ├── models/ml/                 # approval-time features for the prediction model
+│   ├── models/ml/                 # model inputs: late-delivery, weekly demand, seller features
 │   ├── tests/                     # custom data quality tests
 │   └── ci/profiles.yml            # CI connection (no secrets)
-├── sql/analysis/                  # 16 analysis queries + FINDINGS.md
-├── notebooks/                     # significance test, late-delivery model, outputs/
+├── sql/analysis/                  # 17 analysis queries + FINDINGS.md
+├── notebooks/                     # significance test, late-delivery model, demand forecast,
+│                                  # seller segmentation, experiment sample size, outputs/
+├── assistant/                     # text-to-SQL assistant, evaluation sets, results, EVALUATION.md
 ├── dashboards/                    # Power BI .pbix, Excel workbook, screenshots
-└── docs/                          # scoping, metric definitions, ERD, memo
+└── docs/                          # scoping, metric definitions, ERD, experiment design, memo
 ```
 
 ## How to run it
@@ -216,7 +290,7 @@ Requires Python 3.11+, the Google Cloud CLI, and a Google Cloud project with Big
 # 1. environment
 python3 -m venv .venv && source .venv/bin/activate
 pip install dbt-bigquery pandas jupyter db-dtypes google-cloud-bigquery-storage \
-            scikit-learn statsmodels matplotlib ipykernel
+            scikit-learn statsmodels matplotlib ipykernel openai python-dotenv pyyaml
 
 # 2. authenticate
 gcloud auth application-default login
@@ -233,7 +307,12 @@ cd ../..
 python scripts/export_marts.py
 python scripts/export_excel_data.py
 
-# 6. the prediction model: open notebooks/late_delivery_model.ipynb with the .venv kernel
+# 6. notebooks (prediction, forecast, segmentation, experiment): open with the .venv kernel
+
+# 7. text-to-SQL assistant: put OPENAI_API_KEY in .env (never commit it)
+python assistant/build_gold.py
+python assistant/evaluate.py --prompt v2 --runs 3
+python assistant/sql_assistant.py "Which seller state ships the most orders?"
 ```
 
 Set your own project ID in the scripts, `models/staging/_sources.yml`, and your dbt
@@ -253,9 +332,9 @@ Note: the BigQuery free sandbox deletes tables after 60 days; re-run
 - [x] Excel operations workbook
 - [x] Late-delivery prediction at approval time
 - [x] Demand forecasting
-- [ ] Seller segmentation
-- [ ] A/B test design
-- [ ] Text-to-SQL assistant
+- [x] Seller segmentation
+- [x] A/B test design
+- [x] Text-to-SQL assistant with evaluation
 - [ ] Memo to the Head of Operations and five-slide readout
 
 ## Author
