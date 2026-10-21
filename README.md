@@ -168,6 +168,24 @@ delivery days in the analysis window; Rio de Janeiro 12,310 orders, 87.9% on tim
   model can see. The model suits low-cost actions — proactive delay messages, seller
   follow-ups — not expensive ones such as upgrading shipping for every flagged order.
 
+# Weekly demand forecast
+
+**Goal:** forecast weekly orders placed (all orders and the top 5 categories) 1 and 4 weeks ahead.
+**Data:** `dbt_dev_ml.ml_weekly_demand`, 86 complete weeks (Jan 2017 – Aug 2018).
+**Evaluation:** walk-forward over the last 26 weeks; methods chosen on Mar–May 2018, reported on
+Jun–Aug 2018. Metric: WAPE (absolute error as a share of actual volume).
+
+| Report weeks (Jun–Aug 2018), average over 6 series | 1 week ahead | 4 weeks ahead |
+|---|---|---|
+| Same week last year | ~0.45–0.66 (fails: 2017 was a growth year) | same |
+| 4-week average (baseline) | 0.264 | **0.263** |
+| Simple exponential smoothing | **0.228** | 0.280 |
+
+- **1 week ahead:** SES beats the baseline in all six series (−14% error on average, −27% for total orders).
+- **4 weeks ahead:** no method beat the 4-week average; trend models extrapolated noise in flat 2018 demand.
+- **Limits:** one Black Friday in the data and no peak in the test period, so peak forecasting is untested.
+  Recommendation: 4-week average for planning, with a manual uplift for known peaks (Black Friday ran ~2.3× the prior week in 2017).
+
 ## Repository structure
 
 ```
@@ -234,7 +252,7 @@ Note: the BigQuery free sandbox deletes tables after 60 days; re-run
 - [x] Power BI operations overview
 - [x] Excel operations workbook
 - [x] Late-delivery prediction at approval time
-- [ ] Demand forecasting
+- [x] Demand forecasting
 - [ ] Seller segmentation
 - [ ] A/B test design
 - [ ] Text-to-SQL assistant
