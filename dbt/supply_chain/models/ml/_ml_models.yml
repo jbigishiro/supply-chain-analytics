@@ -8,3 +8,11 @@ models:
         data_tests: [unique, not_null]
       - name: is_late
         data_tests: [not_null]
+
+  - name: ml_weekly_demand
+    description: Weekly orders placed (excluding canceled/unavailable) for all orders and the top 5 categories. Complete weeks only, 2017-01-02 to 2018-08-20.
+    columns:
+      - name: series_week_key
+        data_tests: [unique, not_null]
+      - name: orders
+        data_tests: [not_null]
