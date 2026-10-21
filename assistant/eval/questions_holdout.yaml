@@ -1,0 +1,129 @@
+# Held-out questions: written AFTER the error analysis of v1, never used to design prompts.
+# Prompt v2 is judged on these. Same conventions as questions.yaml.
+
+- id: h01
+  difficulty: easy
+  question: How many products are in the catalog?
+  gold_sql: |
+    select count(*) as products
+    from {marts}.dim_products
+
+- id: h02
+  difficulty: easy
+  question: How many customers have placed exactly one order?
+  gold_sql: |
+    select count(*) as one_time_customers
+    from {marts}.dim_customers
+    where n_orders = 1
+
+- id: h03
+  difficulty: medium
+  question: What share of delivered orders arrived more than 7 days before the estimated date?
+  gold_sql: |
+    select avg(if(days_late < -7, 1, 0)) as share_more_than_7_days_early
+    from {marts}.fact_orders
+    where is_delivered and is_in_analysis_window
+
+- id: h04
+  difficulty: medium
+  question: Which 5 customer states had the highest average order value in 2018?
+  gold_sql: |
+    select customer_state, avg(order_value) as avg_order_value
+    from {marts}.fact_orders
+    where is_in_analysis_window
+      and order_status not in ('canceled', 'unavailable')
+      and extract(year from purchase_month) = 2018
+    group by customer_state
+    order by avg_order_value desc
+    limit 5
+
+- id: h05
+  difficulty: medium
+  question: What is the late delivery rate for orders shipped by sellers in Paraná (PR)?
+  gold_sql: |
+    with pr_orders as (
+      select distinct o.order_id, o.is_on_time
+      from {marts}.fact_order_items as i
+      inner join {marts}.dim_sellers as s using (seller_id)
+      inner join {marts}.fact_orders as o using (order_id)
+      where s.seller_state = 'PR' and o.is_delivered and o.is_in_analysis_window
+    )
+    select avg(if(is_on_time, 0, 1)) as late_rate
+    from pr_orders
+
+- id: h06
+  difficulty: medium
+  question: In which month of 2017 did delivered orders miss the seller's shipping deadline most often, and what was the share?
+  gold_sql: |
+    select purchase_month, avg(if(missed_shipping_deadline, 1, 0)) as missed_deadline_rate
+    from {marts}.fact_orders
+    where is_delivered and is_in_analysis_window
+      and extract(year from purchase_month) = 2017
+    group by purchase_month
+    order by missed_deadline_rate desc
+    limit 1
+
+- id: h07
+  difficulty: hard
+  question: What was the month-over-month growth in the number of orders for each month of 2018?
+  gold_sql: |
+    with monthly as (
+      select purchase_month, count(*) as orders
+      from {marts}.fact_orders
+      where is_in_analysis_window
+      group by purchase_month
+    ),
+    growth as (
+      select purchase_month, orders / lag(orders) over (order by purchase_month) - 1 as mom_growth
+      from monthly
+    )
+    select purchase_month, mom_growth
+    from growth
+    where extract(year from purchase_month) = 2018
+
+- id: h08
+  difficulty: hard
+  question: Which 5 product categories with at least 1,000 delivered orders have the lowest average review score?
+  gold_sql: |
+    with category_orders as (
+      select distinct p.category_name, o.order_id, o.review_score
+      from {marts}.fact_order_items as i
+      inner join {marts}.dim_products as p using (product_id)
+      inner join {marts}.fact_orders as o using (order_id)
+      where o.is_delivered and o.is_in_analysis_window
+    )
+    select category_name, avg(review_score) as avg_review_score
+    from category_orders
+    group by category_name
+    having count(*) >= 1000
+    order by avg_review_score
+    limit 5
+
+- id: h09
+  difficulty: hard
+  question: For delivered orders, what is the average freight cost per item by product weight band - under 1 kg, 1-5 kg, 5-20 kg and over 20 kg? Ignore products with no weight.
+  gold_sql: |
+    select
+      case
+        when p.weight_g < 1000  then 'under 1 kg'
+        when p.weight_g < 5000  then '1-5 kg'
+        when p.weight_g < 20000 then '5-20 kg'
+        else 'over 20 kg'
+      end as weight_band,
+      avg(i.freight_value) as avg_freight_per_item
+    from {marts}.fact_order_items as i
+    inner join {marts}.dim_products as p using (product_id)
+    inner join {marts}.fact_orders as o using (order_id)
+    where o.is_delivered and o.is_in_analysis_window
+      and p.weight_g is not null
+    group by weight_band
+
+- id: h10
+  difficulty: hard
+  question: Among reviewed delivered orders, what share got 5 stars when the order was on time compared with when it was late?
+  gold_sql: |
+    select is_on_time, avg(if(review_score = 5, 1, 0)) as five_star_share
+    from {marts}.fact_orders
+    where is_delivered and is_in_analysis_window
+      and review_score is not null
+    group by is_on_time

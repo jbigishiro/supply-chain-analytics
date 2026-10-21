@@ -1,0 +1,114 @@
+===== q07 [easy] wrong_result
+Q: What is the average review score?
+select avg(review_score) as avg_review_score
+from `supply-chain-analytics-510105.dbt_dev_marts.fact_orders`
+where is_in_analysis_window
+  and order_status not in ('canceled', 'unavailable') 
+
+===== q09 [medium] wrong_result
+Q: What was the on-time rate each month in 2018?
+select purchase_month, avg(if(is_on_time, 1, 0)) as on_time_rate
+from (
+    select distinct order_id, purchase_month, is_on_time
+    from `supply-chain-analytics-510105.dbt_dev_marts.fact_orders`
+    where is_in_analysis_window
+      and order_status not in ('canceled', 'unavailable')
+      and extract(year from purchase_month) = 2018
+) as orders
+group by purchase_month
+order by purchase_month 
+
+===== q13 [medium] wrong_result
+Q: What is the average review score for late orders compared with on-time orders?
+select 
+  avg(case when is_on_time then review_score end) as avg_on_time_review_score,
+  avg(case when not is_on_time then review_score end) as avg_late_review_score
+from (
+  select distinct order_id, review_score, is_on_time
+  from `supply-chain-analytics-510105.dbt_dev_marts.fact_orders`
+  where is_delivered = true and is_in_analysis_window
+) as subquery 
+
+===== q17 [medium] wrong_result
+Q: Which 10 product categories generate the most revenue from item prices?
+select p.category_name, sum(i.price) as total_revenue
+from `supply-chain-analytics-510105.dbt_dev_marts.fact_order_items` as i
+inner join `supply-chain-analytics-510105.dbt_dev_marts.dim_products` as p using (product_id)
+group by p.category_name
+order by total_revenue desc
+limit 10 
+
+===== q18 [medium] wrong_result
+Q: How many orders are placed on each day of the week?
+select d.day_name, count(o.order_id) as total_orders
+from `supply-chain-analytics-510105.dbt_dev_marts.fact_orders` as o
+inner join `supply-chain-analytics-510105.dbt_dev_marts.dim_date` as d on o.purchase_date = d.date_day
+group by d.day_name
+order by d.day_name 
+
+===== q21 [hard] sql_error
+Q: Which 10 sellers with at least 100 delivered orders have the worst on-time rate?
+ERROR: 400 POST https://bigquery.googleapis.com/bigquery/v2/projects/supply-chain-analytics-510105/jobs?prettyPrint=false: Column name is_on_time is ambiguous at [2:15]
+select seller_id, 
+       avg(if(is_on_time, 1, 0)) as on_time_rate, 
+       count(distinct order_id) as delivered_orders
+from `supply-chain-analytics-510105.dbt_dev_marts.fact_order_items` as i
+inner join `supply-chain-analytics-510105.dbt_dev_marts.fact_orders` as o using (order_id)
+where o.is_delivered and o.is_in_analysis_window
+group by seller_id
+having delivered_orders >= 100
+order by on_time_rate
+limit 10 
+
+===== q22 [hard] sql_error
+Q: Which seller state ships the most orders, and what is its on-time rate?
+ERROR: 400 POST https://bigquery.googleapis.com/bigquery/v2/projects/supply-chain-analytics-510105/jobs?prettyPrint=false: Unrecognized name: seller_state at [1:8]
+select seller_state, count(distinct order_id) as total_orders, avg(if(is_on_time, 1, 0)) as on_time_rate
+from `supply-chain-analytics-510105.dbt_dev_marts.fact_order_items` as i
+inner join `supply-chain-analytics-510105.dbt_dev_marts.fact_orders` as o using (order_id)
+where o.is_in_analysis_window
+group by seller_state
+order by total_orders desc
+limit 1 
+
+===== q23 [hard] wrong_result
+Q: How does average delivery time change with seller-to-customer distance, in bands of 0-100, 100-500, 500-1000 and over 1000 km?
+select 
+  case 
+    when distance_km <= 100 then '0-100 km'
+    when distance_km <= 500 then '100-500 km'
+    when distance_km <= 1000 then '500-1000 km'
+    else 'over 1000 km'
+  end as distance_band,
+  avg(total_delivery_days) as avg_delivery_time
+from (
+  select 
+    o.order_id,
+    max(i.distance_km) as distance_km,
+    o.total_delivery_days
+  from `supply-chain-analytics-510105.dbt_dev_marts.fact_orders` as o
+  inner join `supply-chain-analytics-510105.dbt_dev_marts.fact_order_items` as i using (order_id)
+  where o.is_delivered and o.is_in_analysis_window
+  group by o.order_id, o.total_delivery_days
+)
+group by distance_band
+order by distance_band 
+
+===== q24 [hard] wrong_result
+Q: What is the average review score by how late the order was - on time, 1-3 days late, 4-7 days late, and more than 7 days late?
+select 
+  case 
+    when days_late = 0 then 'on time'
+    when days_late between 1 and 3 then '1-3 days late'
+    when days_late between 4 and 7 then '4-7 days late'
+    else 'more than 7 days late'
+  end as lateness_category,
+  avg(review_score) as avg_review_score
+from (
+  select distinct order_id, review_score, days_late
+  from `supply-chain-analytics-510105.dbt_dev_marts.fact_orders`
+  where is_delivered = true and is_in_analysis_window
+) as subquery
+group by lateness_category
+order by lateness_category 
+

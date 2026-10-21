@@ -1,0 +1,54 @@
+===== h06 [medium] wrong_result
+Q: In which month of 2017 did delivered orders miss the seller's shipping deadline most often, and what was the share?
+select extract(month from purchase_date) as month, 
+       avg(if(missed_shipping_deadline, 1, 0)) as missed_deadline_share
+from `supply-chain-analytics-510105.dbt_dev_marts.fact_orders`
+where is_delivered
+  and extract(year from purchase_date) = 2017
+group by month
+order by missed_deadline_share desc
+limit 1 
+
+===== h07 [hard] wrong_result
+Q: What was the month-over-month growth in the number of orders for each month of 2018?
+with monthly_orders as (
+  select purchase_month, count(distinct order_id) as order_count
+  from `supply-chain-analytics-510105.dbt_dev_marts.fact_orders`
+  where extract(year from purchase_month) = 2018
+  group by purchase_month
+),
+growth as (
+  select 
+    purchase_month,
+    order_count,
+    lag(order_count) over (order by purchase_month) as previous_order_count
+  from monthly_orders
+)
+select 
+  purchase_month,
+  (order_count - previous_order_count) / previous_order_count as month_over_month_growth
+from growth
+where previous_order_count is not null
+order by purchase_month 
+
+===== h08 [hard] wrong_result
+Q: Which 5 product categories with at least 1,000 delivered orders have the lowest average review score?
+select p.category_name, avg(o.review_score) as avg_review_score
+from `supply-chain-analytics-510105.dbt_dev_marts.fact_order_items` as i
+inner join `supply-chain-analytics-510105.dbt_dev_marts.fact_orders` as o using (order_id)
+inner join `supply-chain-analytics-510105.dbt_dev_marts.dim_products` as p on i.product_id = p.product_id
+where o.is_delivered
+group by p.category_name
+having count(distinct o.order_id) >= 1000
+order by avg_review_score
+limit 5 
+
+===== h10 [hard] wrong_result
+Q: Among reviewed delivered orders, what share got 5 stars when the order was on time compared with when it was late?
+select
+  case when is_on_time then 'On Time' else 'Late' end as delivery_status,
+  avg(if(review_score = 5, 1, 0)) as five_star_share
+from `supply-chain-analytics-510105.dbt_dev_marts.fact_orders`
+where is_delivered and has_review
+group by delivery_status 
+

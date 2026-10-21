@@ -1,0 +1,279 @@
+# Text-to-SQL evaluation set.
+# Each gold query is the reference answer. {marts} is replaced with the marts dataset at run time.
+# Results are compared order-insensitively, numbers rounded to 3 decimals, column names ignored.
+
+- id: q01
+  difficulty: easy
+  question: How many orders are there in total?
+  gold_sql: |
+    select count(*) as orders
+    from {marts}.fact_orders
+
+- id: q02
+  difficulty: easy
+  question: How many sellers are on the marketplace?
+  gold_sql: |
+    select count(*) as sellers
+    from {marts}.dim_sellers
+
+- id: q03
+  difficulty: easy
+  question: How many orders were canceled?
+  gold_sql: |
+    select count(*) as canceled_orders
+    from {marts}.fact_orders
+    where order_status = 'canceled'
+
+- id: q04
+  difficulty: easy
+  question: How many orders are there in each order status?
+  gold_sql: |
+    select order_status, count(*) as orders
+    from {marts}.fact_orders
+    group by order_status
+
+- id: q05
+  difficulty: easy
+  question: What is the on-time delivery rate?
+  gold_sql: |
+    select avg(if(is_on_time, 1, 0)) as on_time_rate
+    from {marts}.fact_orders
+    where is_delivered and is_in_analysis_window
+
+- id: q06
+  difficulty: easy
+  question: What is the average delivery time in days?
+  gold_sql: |
+    select avg(total_delivery_days) as avg_delivery_days
+    from {marts}.fact_orders
+    where is_delivered and is_in_analysis_window
+
+- id: q07
+  difficulty: easy
+  question: What is the average review score?
+  gold_sql: |
+    select avg(review_score) as avg_review_score
+    from {marts}.fact_orders
+    where is_in_analysis_window
+
+- id: q08
+  difficulty: easy
+  question: Which month had the most orders?
+  gold_sql: |
+    select purchase_month, count(*) as orders
+    from {marts}.fact_orders
+    where is_in_analysis_window
+    group by purchase_month
+    order by orders desc
+    limit 1
+
+- id: q09
+  difficulty: medium
+  question: What was the on-time rate each month in 2018?
+  gold_sql: |
+    select purchase_month, avg(if(is_on_time, 1, 0)) as on_time_rate
+    from {marts}.fact_orders
+    where is_delivered and is_in_analysis_window
+      and extract(year from purchase_month) = 2018
+    group by purchase_month
+
+- id: q10
+  difficulty: medium
+  question: How long does each fulfillment stage take on average, in days?
+  gold_sql: |
+    select
+      avg(approval_days)          as avg_approval_days,
+      avg(seller_processing_days) as avg_seller_processing_days,
+      avg(carrier_transit_days)   as avg_carrier_transit_days
+    from {marts}.fact_orders
+    where is_delivered and is_in_analysis_window
+
+- id: q11
+  difficulty: medium
+  question: Which 5 customer states have the lowest on-time rate, among states with at least 500 delivered orders?
+  gold_sql: |
+    select customer_state, avg(if(is_on_time, 1, 0)) as on_time_rate
+    from {marts}.fact_orders
+    where is_delivered and is_in_analysis_window
+    group by customer_state
+    having count(*) >= 500
+    order by on_time_rate
+    limit 5
+
+- id: q12
+  difficulty: medium
+  question: For customers in Rio de Janeiro (RJ), what are the number of delivered orders, the on-time rate and the average delivery days?
+  gold_sql: |
+    select
+      count(*)                     as delivered_orders,
+      avg(if(is_on_time, 1, 0))    as on_time_rate,
+      avg(total_delivery_days)     as avg_delivery_days
+    from {marts}.fact_orders
+    where customer_state = 'RJ' and is_delivered and is_in_analysis_window
+
+- id: q13
+  difficulty: medium
+  question: What is the average review score for late orders compared with on-time orders?
+  gold_sql: |
+    select is_on_time, avg(review_score) as avg_review_score
+    from {marts}.fact_orders
+    where is_delivered and is_in_analysis_window
+    group by is_on_time
+
+- id: q14
+  difficulty: medium
+  question: What share of delivered orders missed the seller's shipping deadline?
+  gold_sql: |
+    select avg(if(missed_shipping_deadline, 1, 0)) as missed_deadline_rate
+    from {marts}.fact_orders
+    where is_delivered and is_in_analysis_window
+
+- id: q15
+  difficulty: medium
+  question: What were the monthly order count and gross merchandise value in 2017?
+  gold_sql: |
+    select purchase_month, count(*) as orders, sum(order_value) as gmv
+    from {marts}.fact_orders
+    where is_in_analysis_window
+      and order_status not in ('canceled', 'unavailable')
+      and extract(year from purchase_month) = 2017
+    group by purchase_month
+
+- id: q16
+  difficulty: medium
+  question: What is freight cost as a share of total order value?
+  gold_sql: |
+    select sum(freight_value) / sum(order_value) as freight_share
+    from {marts}.fact_orders
+    where is_in_analysis_window
+      and order_status not in ('canceled', 'unavailable')
+
+- id: q17
+  difficulty: medium
+  question: Which 10 product categories generate the most revenue from item prices?
+  gold_sql: |
+    select p.category_name, sum(i.price) as revenue
+    from {marts}.fact_order_items as i
+    inner join {marts}.dim_products as p using (product_id)
+    inner join {marts}.fact_orders as o using (order_id)
+    where o.is_in_analysis_window
+      and o.order_status not in ('canceled', 'unavailable')
+    group by p.category_name
+    order by revenue desc
+    limit 10
+
+- id: q18
+  difficulty: medium
+  question: How many orders are placed on each day of the week?
+  gold_sql: |
+    select d.day_name, count(*) as orders
+    from {marts}.fact_orders as o
+    inner join {marts}.dim_date as d on o.purchase_date = d.date_day
+    group by d.day_name
+
+- id: q19
+  difficulty: hard
+  question: What percentage of customers have placed more than one order?
+  gold_sql: |
+    select avg(if(is_repeat_customer, 1, 0)) as repeat_customer_rate
+    from {marts}.dim_customers
+
+- id: q20
+  difficulty: hard
+  question: What share of 1- and 2-star reviews come from late orders?
+  gold_sql: |
+    select avg(if(is_on_time, 0, 1)) as share_from_late_orders
+    from {marts}.fact_orders
+    where is_delivered and is_in_analysis_window
+      and review_score <= 2
+
+- id: q21
+  difficulty: hard
+  question: Which 10 sellers with at least 100 delivered orders have the worst on-time rate?
+  gold_sql: |
+    with seller_orders as (
+      select distinct i.seller_id, o.order_id, o.is_on_time
+      from {marts}.fact_order_items as i
+      inner join {marts}.fact_orders as o using (order_id)
+      where o.is_delivered and o.is_in_analysis_window
+    )
+    select seller_id, count(*) as delivered_orders, avg(if(is_on_time, 1, 0)) as on_time_rate
+    from seller_orders
+    group by seller_id
+    having count(*) >= 100
+    order by on_time_rate
+    limit 10
+
+- id: q22
+  difficulty: hard
+  question: Which seller state ships the most orders, and what is its on-time rate?
+  gold_sql: |
+    with seller_state_orders as (
+      select distinct s.seller_state, o.order_id, o.is_on_time
+      from {marts}.fact_order_items as i
+      inner join {marts}.dim_sellers as s using (seller_id)
+      inner join {marts}.fact_orders as o using (order_id)
+      where o.is_delivered and o.is_in_analysis_window
+    )
+    select seller_state, count(*) as orders, avg(if(is_on_time, 1, 0)) as on_time_rate
+    from seller_state_orders
+    group by seller_state
+    order by orders desc
+    limit 1
+
+- id: q23
+  difficulty: hard
+  question: How does average delivery time change with seller-to-customer distance, in bands of 0-100, 100-500, 500-1000 and over 1000 km?
+  gold_sql: |
+    with order_distance as (
+      select order_id, max(distance_km) as distance_km
+      from {marts}.fact_order_items
+      group by order_id
+    )
+    select
+      case
+        when d.distance_km < 100  then '0-100'
+        when d.distance_km < 500  then '100-500'
+        when d.distance_km < 1000 then '500-1000'
+        else '1000+'
+      end as distance_band,
+      avg(o.total_delivery_days) as avg_delivery_days
+    from {marts}.fact_orders as o
+    inner join order_distance as d using (order_id)
+    where o.is_delivered and o.is_in_analysis_window
+      and d.distance_km is not null
+    group by distance_band
+
+- id: q24
+  difficulty: hard
+  question: What is the average review score by how late the order was - on time, 1-3 days late, 4-7 days late, and more than 7 days late?
+  gold_sql: |
+    select
+      case
+        when days_late <= 0 then 'on time'
+        when days_late <= 3 then '1-3 days late'
+        when days_late <= 7 then '4-7 days late'
+        else '8+ days late'
+      end as lateness,
+      avg(review_score) as avg_review_score
+    from {marts}.fact_orders
+    where is_delivered and is_in_analysis_window
+    group by lateness
+
+- id: q25
+  difficulty: hard
+  question: Which month had the biggest drop in on-time rate compared with the month before?
+  gold_sql: |
+    with monthly as (
+      select purchase_month, avg(if(is_on_time, 1, 0)) as on_time_rate
+      from {marts}.fact_orders
+      where is_delivered and is_in_analysis_window
+      group by purchase_month
+    )
+    select
+      purchase_month,
+      on_time_rate - lag(on_time_rate) over (order by purchase_month) as change
+    from monthly
+    qualify change is not null
+    order by change
+    limit 1
