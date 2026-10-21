@@ -16,3 +16,9 @@ models:
         data_tests: [unique, not_null]
       - name: orders
         data_tests: [not_null]
+
+  - name: ml_seller_features
+    description: One row per seller with 20+ delivered orders (Jan 2017 - Aug 2018) - volume, reliability, speed and review features for segmentation.
+    columns:
+      - name: seller_id
+        data_tests: [unique, not_null]
