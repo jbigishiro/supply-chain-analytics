@@ -42,7 +42,7 @@ Kaggle CSVs ──► BigQuery (olist_raw) ──► dbt: staging ──► inte
 | Raw | 9 tables in `olist_raw` | Loaded by [`scripts/load_raw.py`](scripts/load_raw.py) with every column as STRING, so nothing is altered on the way in (e.g. leading zeros in zip codes survive) |
 | Staging | 9 `stg_` views | One model per source table: types cast, columns renamed, nothing else |
 | Intermediate | `int_orders_enriched`, `int_order_reviews_latest`, `int_geolocation_by_zip` | Stage durations, lateness, on-time and timeline-validity flags, review deduplication, coordinates per zip |
-| Marts | `fact_orders`, `fact_order_items`, `dim_customers`, `dim_sellers`, `dim_products`, `dim_date` | Star schema read by analysis and dashboards — see the **[ERD](docs/erd.md)** |
+| Marts | `fact_orders`, `fact_order_items`, `dim_customers`, `dim_sellers`, `dim_products`, `dim_date` | Star schema read by analysis and dashboards — see the **[ERD](docs/ERD.md)** |
 | ML | `ml_late_delivery_features`, `ml_weekly_demand`, `ml_seller_features` | Model inputs: approval-time features per order; weekly order counts for 6 series; one row per seller with volume, reliability, speed and reviews |
 
 **Stack:** Google BigQuery · dbt Core · SQL · Python (pandas, scikit-learn, statsmodels) ·
